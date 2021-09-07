@@ -1,8 +1,13 @@
 package fr.wonder.pspc;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -14,9 +19,11 @@ import java.awt.event.MouseMotionAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -25,20 +32,31 @@ import javax.swing.JPanel;
 
 public abstract class Sketch {
 	
+	public static final Color[] DEFAULT_COLOR_SCHEME = new Color[] {
+			colorFromHex("#a6cee3"),colorFromHex("#1f78b4"),colorFromHex("#b2df8a"),colorFromHex("#33a02c"),
+			colorFromHex("#fb9a99"),colorFromHex("#e31a1c"),colorFromHex("#fdbf6f"),colorFromHex("#ff7f00"),
+			colorFromHex("#cab2d6"),colorFromHex("#6a3d9a"),colorFromHex("#ffff99"),colorFromHex("#b15928")
+	};
+	
 	public int winWidth, winHeight;
 	public int frame;
 	public int mouseX, mouseY;
+	public boolean mousePressed;
 	
 	private long frameDelta = 1000/60;
 	
 	private JFrame jframe;
 	private JPanel canvas;
 	
-	private Graphics graphics;
+	private Graphics2D graphics;
 	
 	private Color 	fillColor = Color.white,
 					strokeColor = Color.black,
 					clearColor = Color.black;
+	
+	private float strokeWidth = 1;
+	private Font defaultFont;
+	private final Map<Integer, Font> derivedFonts = new HashMap<>();
 	
 	/** Entry point of sketches */
 	public void start() {
@@ -49,9 +67,16 @@ public abstract class Sketch {
 		jframe.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		jframe.addComponentListener(new ComponentAdapter() {
 			public void componentResized(ComponentEvent e) {
-				setWinSize(jframe.getContentPane().getWidth(), jframe.getContentPane().getHeight());
+				int w = jframe.getContentPane().getWidth();
+				int h = jframe.getContentPane().getHeight();
+				if(w == 0 || h == 0)
+					return;
+				setWinSize(w, h);
 			}
 		});
+		this.defaultFont = new Font("Courier New", Font.PLAIN, 12);
+		derivedFonts.put(defaultFont.getSize(), defaultFont);
+		
 		this.canvas = new JPanel() {
 			private static final long serialVersionUID = -5345971935323546584L;
 			@Override
@@ -60,7 +85,8 @@ public abstract class Sketch {
 			}
 			@Override
 			public void paint(Graphics g) {
-				Sketch.this.graphics = g;
+				Sketch.this.graphics = (Graphics2D) g;
+				graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 				Sketch.this.frame++;
 				try {
 					Sketch.this.draw();
@@ -79,7 +105,13 @@ public abstract class Sketch {
 			public void keyReleased(KeyEvent e) { Sketch.this.keyReleased(e.getKeyChar()); }
 		});
 		canvas.addMouseListener(new MouseAdapter() {
-			public void mousePressed(MouseEvent e) { Sketch.this.mouseClicked(e.getButton()); }
+			public void mousePressed(MouseEvent e) {
+				Sketch.this.mousePressed = true;
+				Sketch.this.mouseClicked(e.getButton());
+			}
+			public void mouseReleased(MouseEvent e) {
+				Sketch.this.mousePressed = false;
+			}
 		});
 		canvas.addMouseMotionListener(new MouseMotionAdapter() {
 			public void mouseMoved(MouseEvent e) { mouseX = e.getX(); mouseY = e.getY(); }
@@ -95,8 +127,8 @@ public abstract class Sketch {
 			return;
 		}
 		
-		jframe.pack();
 		jframe.setVisible(true);
+		canvas.grabFocus();
 		
 		long lastFPSMillis = System.currentTimeMillis();
 		int frameCounter = 0;
@@ -126,6 +158,7 @@ public abstract class Sketch {
 			t.printStackTrace();
 		}
 		jframe.dispatchEvent(new WindowEvent(jframe, WindowEvent.WINDOW_CLOSING));
+		System.exit(1);
 	}
 	
 	/* ------------------ Overridable -------------------- */
@@ -139,10 +172,12 @@ public abstract class Sketch {
 	/* ------------------ Setup -------------------- */
 	
 	public final void setWinSize(int width, int height) {
+		if(width <= 0 || height <= 0)
+			throw new IllegalArgumentException("Negative size");
 		this.winWidth = width;
 		this.winHeight = height;
-		this.canvas.setPreferredSize(new Dimension(width, height));
-		this.jframe.pack();
+		canvas.setPreferredSize(new Dimension(width, height));
+		jframe.pack();
 	}
 	
 	public final void setResizable(boolean resizable) {
@@ -169,7 +204,7 @@ public abstract class Sketch {
 	}
 	
 	public final void fill(int r, int g, int b) {
-		this.fill(r, g, b, 255);
+		fill(r, g, b, 255);
 	}
 	
 	public final void fill(int r, int g, int b, int a) {
@@ -181,37 +216,43 @@ public abstract class Sketch {
 	}
 	
 	public final void stroke(Color color) {
-		this.strokeColor = color;
+		this.strokeColor = Objects.requireNonNull(color);
 	}
 	
 	public final void stroke(int r, int g, int b) {
-		this.stroke(r, g, b, 255);
+		stroke(r, g, b, 255);
 	}
 	
 	public final void stroke(int r, int g, int b, int a) {
 		this.strokeColor = new Color(r, g, b, a);
 	}
 	
+	public final void strokeWidth(float width) {
+		if(width <= 0)
+			throw new IllegalArgumentException("Stroke weight must be >0");
+		this.strokeWidth = width;
+	}
+	
 	public final void noStroke() {
-		this.strokeColor = null;
+		this.strokeWidth = 0;
 	}
 	
 	private final boolean beginFill() {
-		if(this.fillColor != null)
-			this.graphics.setColor(fillColor);
-		return this.fillColor != null;
+		if(fillColor != null)
+			graphics.setColor(fillColor);
+		return fillColor != null;
 	}
 	
 	private final boolean beginStroke() {
-		if(this.strokeColor != null)
-			this.graphics.setColor(strokeColor);
-		return this.strokeColor != null;
+		if(strokeWidth > 0) {
+			graphics.setColor(strokeColor);
+			graphics.setStroke(new BasicStroke(strokeWidth));
+		}
+		return strokeWidth > 0;
 	}
 	
 	public final void clearColor(Color color) {
-		if(color == null)
-			throw new NullPointerException("The clear color cannot be null");
-		this.clearColor = color;
+		this.clearColor = Objects.requireNonNull(color);
 	}
 	
 	public final void clear() {
@@ -248,47 +289,128 @@ public abstract class Sketch {
 	public final void arrow(float x1, float y1, float x2, float y2) {
 		line(x1, y1, x2, y2);
 		Vec2 v = new Vec2(x1-x2, y1-y2);
-		v = v.normalized().multiply(10);
+		v = v.normalized().times(10);
 		final float a = PI/8;
 		final float c = cos(a), s = sin(a);
 		line(x2, y2, x2+c*v.x-s*v.y, y2+s*v.x+c*v.y);
 		line(x2, y2, x2+c*v.x+s*v.y, y2-s*v.x+c*v.y);
 	}
 	
+	public final void cross(float x, float y, float size) {
+		line(x-size, y-size, x+size, y+size);
+		line(x-size, y+size, x+size, y-size);
+	}
+	
+	public final void textSize(float size) {
+		graphics.setFont(derivedFonts.computeIfAbsent((int) size, s -> defaultFont.deriveFont(size)));
+	}
+	
+	public final void text(String text, float x, float y) {
+		FontMetrics metrics = graphics.getFontMetrics();
+		x -= metrics.stringWidth(text)/2f;
+		y += metrics.getHeight()/4f;
+		graphics.setColor(Color.WHITE);
+		graphics.drawString(text, x, y);
+	}
+	
+	public static Color colorFromHex(String hex) {
+		if(hex.startsWith("#"))
+			hex = hex.substring(1);
+		String r = hex.substring(0, 2);
+		String g = hex.substring(2, 4);
+		String b = hex.substring(4, 6);
+		return new Color(
+				Integer.parseInt(r, 16)/255f,
+				Integer.parseInt(g, 16)/255f,
+				Integer.parseInt(b, 16)/255f);
+	}
+	
+	public static Color colorFromHSB(float hue, float saturation, float brightness) {
+		return Color.getHSBColor(hue, saturation, brightness);
+	}
+	
+	public static Color colorInScheme(int i) {
+		return DEFAULT_COLOR_SCHEME[i % DEFAULT_COLOR_SCHEME.length];
+	}
+	
 	/* ------------------ Math -------------------- */
 	
-	public final float PI = (float) Math.PI;
+	public static final float PI = (float) Math.PI;
 	
-	public final int ceil(float f) {
+	public static int ceil(float f) {
 		return (int) Math.ceil(f);
 	}
 	
-	public final int floor(float f) {
+	public static int floor(float f) {
 		return (int) Math.floor(f);
 	}
 	
-	public final float random() {
+	public static float fract(float f) {
+		return f%1;
+	}
+	
+	public static float random() {
 		return (float) Math.random();
 	}
 	
-	public final int random(int min, int max) {
+	public static float random(float min, float max) {
+		return random()*(max-min)+min;
+	}
+	
+	public static int randint(int min, int max) {
 		return (int) (random()*(max-min)+min);
 	}
 	
-	public final static float sqrt(float f) {
+	public static int abs(int x) {
+		return Math.abs(x);
+	}
+	
+	public static float abs(float x) {
+		return Math.abs(x);
+	}
+	
+	public static float sqrt(float f) {
 		return (float) Math.sqrt(f);
 	}
 	
-	public final float cos(float f) {
+	public static float cos(float f) {
 		return (float) Math.cos(f);
 	}
 	
-	public final float sin(float f) {
+	public static float sin(float f) {
 		return (float) Math.sin(f);
 	}
 	
-	public final float tan(float f) {
+	public static float tan(float f) {
 		return (float) Math.tan(f);
+	}
+
+	public static int max(int... ints) {
+		int m = ints[0];
+		for(int i : ints)
+			m = Math.max(i, m);
+		return m;
+	}
+	
+	public static float max(float... floats) {
+		float m = floats[0];
+		for(float i : floats)
+			m = Math.max(i, m);
+		return m;
+	}
+
+	public static int min(int... ints) {
+		int m = ints[0];
+		for(int i : ints)
+			m = Math.min(i, m);
+		return m;
+	}
+	
+	public static float min(float... floats) {
+		float m = floats[0];
+		for(float i : floats)
+			m = Math.min(i, m);
+		return m;
 	}
 	
 	public static class Vec2 {
@@ -300,40 +422,57 @@ public abstract class Sketch {
 			this.y = y;
 		}
 		
+		public Vec2() {
+			this(0, 0);
+		}
+		
 		public Vec2 normalized() {
 			float l = length();
 			return new Vec2(x/l, y/l);
 		}
 		
-		public Vec2 add(Vec2 v) {
+		public Vec2 plus(Vec2 v) {
 			return new Vec2(x+v.x, y+v.y);
 		}
 		
-		public Vec2 substract(Vec2 v) {
+		public Vec2 minus(Vec2 v) {
 			return new Vec2(x-v.x, y-v.y);
 		}
 		
-		public Vec2 multiply(float f) {
+		public Vec2 times(float f) {
 			return new Vec2(x*f, y*f);
 		}
 		
-		public float length() {
-			return sqrt(x*x + y*y);
+		public static float dot(Vec2 v1, Vec2 v2) {
+			return v1.x*v2.x+v1.y*v2.y;
 		}
 		
+		public float length() {
+			return sqrt(lengthSquared());
+		}
+		
+		public float lengthSquared() {
+			return x*x + y*y;
+		}
+		
+		@Override
+		public String toString() {
+			return String.format("(%.2f, %.2f)", x, y);
+		}
+		
+	}
+	
+	public int parseInt(String str) {
+		return Integer.parseInt(str);
+	}
+	
+	public float parseFloat(String str) {
+		return Float.parseFloat(str);
 	}
 	
 	/* ------------------ Debug -------------------- */
 	
 	public final <T> T LOG(T t) {
-		if(t == null) {
-			System.out.println(t);
-			return t;
-		}
-//		if(t.getClass().isArray()) {
-//			System.out.println(Arrays.deepToString((Object[]) t));
-//			return t;
-//		}
 		System.out.println(t);
 		return t;
 	}
@@ -519,9 +658,9 @@ public abstract class Sketch {
 			for(Pair<Node> edge : g.edges) {
 				Vec2 n1 = new Vec2(edge.first.x, edge.first.y);
 				Vec2 n2 = new Vec2(edge.second.x, edge.second.y);
-				Vec2 v = n2.substract(n1).normalized();
-				n1 = n1.add(v.multiply(edge.first.size));
-				n2 = n2.substract(v.multiply(edge.second.size));
+				Vec2 v = n2.minus(n1).normalized();
+				n1 = n1.plus(v.times(edge.first.size));
+				n2 = n2.minus(v.times(edge.second.size));
 				arrow(n1.x, n1.y, n2.x, n2.y);
 			}
 		} else {
