@@ -30,6 +30,14 @@ import java.util.Set;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
+/**
+ * The main purpose of this class is to expose
+ * lots of methods without having to import anything.<br>
+ * <br>
+ * Most methods should be self-explanatory, explore each
+ * section (maths, graphics...) to see what capabilities
+ * they expose.
+ */
 public abstract class Sketch {
 	
 	public static final Color[] DEFAULT_COLOR_SCHEME = new Color[] {
@@ -37,6 +45,9 @@ public abstract class Sketch {
 			colorFromHex("#fb9a99"),colorFromHex("#e31a1c"),colorFromHex("#fdbf6f"),colorFromHex("#ff7f00"),
 			colorFromHex("#cab2d6"),colorFromHex("#6a3d9a"),colorFromHex("#ffff99"),colorFromHex("#b15928")
 	};
+
+	public static final int CLICK_LEFT = 1;
+	public static final int CLICK_RIGHT = 3;
 	
 	public int winWidth, winHeight;
 	public int frame;
@@ -95,7 +106,7 @@ public abstract class Sketch {
 				}
 			}
 		};
-		canvas.addKeyListener(new KeyAdapter() {
+		jframe.addKeyListener(new KeyAdapter() {
 			public void keyPressed(KeyEvent e) {
 				if(e.getKeyCode() == KeyEvent.VK_ESCAPE)
 					terminate(null, null);
@@ -458,6 +469,10 @@ public abstract class Sketch {
 		@Override
 		public String toString() {
 			return String.format("(%.2f, %.2f)", x, y);
+		}
+
+		public float distanceTo(Vec2 other) {
+			return this.minus(other).length();
 		}
 		
 	}

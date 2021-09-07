@@ -1,6 +1,8 @@
 package sketches.bezier;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 
 import fr.wonder.pspc.Sketch;
 
@@ -9,7 +11,7 @@ public class Bezier extends Sketch {
 	final float step = 1/120f;
 	
 	// runtime
-	Vec2[] points;
+	List<Vec2> points = new ArrayList<>();
 	boolean displayLines = true;
 	
 	public static void main(String[] args) {
@@ -20,14 +22,14 @@ public class Bezier extends Sketch {
 	public void setup() {
 		setWinSize(800, 500);
 		
-		genPoints(50);
+		genPoints(10);
 	}
 	
 	@Override
 	public void keyPressed(char key) {
 		print(key);
 		if(key == ' ')
-			genPoints(points.length);
+			genPoints(points.size());
 		if(key == 'h')
 			displayLines = !displayLines;
 		if('1' <= key && key <= '9')
@@ -36,13 +38,21 @@ public class Bezier extends Sketch {
 	
 	@Override
 	public void mouseClicked(int button) {
+		Vec2 mouse = new Vec2(mouseX, mouseY);
 		print(button);
+		if(button == CLICK_LEFT) {
+			points.add(mouse);
+		} else if(button == CLICK_RIGHT) {
+			points.removeIf(pt -> pt.distanceTo(mouse) < 10);
+			if(points.isEmpty())
+				points.add(mouse);
+		}
 	}
 	
 	void genPoints(int count) {
-		points = new Vec2[count];
+		points.clear();
 		for(int i = 0; i < count; i++) {
-			points[i] = new Vec2(random()*winWidth, random()*winHeight);
+			points.add(new Vec2(random()*winWidth, random()*winHeight));
 		}
 	}
 	
@@ -53,13 +63,13 @@ public class Bezier extends Sketch {
 		float delta = fract(frame*step);
 		
 		strokeWidth(1f);
-		curve(points, delta, displayLines);
+		curve(delta, displayLines);
 		
 		strokeWidth(2f);
 		stroke(Color.WHITE);
-		Vec2 prev = curve(points, 0, false);
+		Vec2 prev = curve(0, false);
 		for(float i = step; i < delta; i += step) {
-			Vec2 next = curve(points, i, false);
+			Vec2 next = curve(i, false);
 			line(prev.x, prev.y, next.x, next.y);
 			prev = next;
 		}
@@ -69,6 +79,10 @@ public class Bezier extends Sketch {
 		for(Vec2 v : points) {
 			circle(v.x, v.y, 5f);
 		}
+	}
+	
+	Vec2 curve(float delta, boolean draw) {
+		return curve(points.toArray(Vec2[]::new), delta, draw);
 	}
 	
 	Vec2 curve(Vec2[] positions, float delta, boolean draw) {
