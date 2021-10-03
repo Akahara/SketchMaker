@@ -1,5 +1,9 @@
-.DS_Store
-
 *.class
 
+hs_err_pid*
+
 bin/
+.settings/
+.project
+.classpath
+*.DS_Store
