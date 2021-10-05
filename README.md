@@ -12,7 +12,7 @@ Almost any version of java should work, I tested it with java 8 and 14.
 ## How to use
 
 ```java
-class SomeSketch {
+class SomeSketch extends Sketch {
 	
 	// Main function, should always look like this
 	public static void main(String[] args) {
