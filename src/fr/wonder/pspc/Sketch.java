@@ -45,6 +45,8 @@ public abstract class Sketch {
 			colorFromHex("#fb9a99"),colorFromHex("#e31a1c"),colorFromHex("#fdbf6f"),colorFromHex("#ff7f00"),
 			colorFromHex("#cab2d6"),colorFromHex("#6a3d9a"),colorFromHex("#ffff99"),colorFromHex("#b15928")
 	};
+	
+	private static int currentColorInScheme;
 
 	public static final int CLICK_LEFT = 1;
 	public static final int CLICK_RIGHT = 3;
@@ -342,6 +344,10 @@ public abstract class Sketch {
 	
 	public static Color colorInScheme(int i) {
 		return DEFAULT_COLOR_SCHEME[i % DEFAULT_COLOR_SCHEME.length];
+	}
+	
+	public static Color nextColorInScheme() {
+		return colorInScheme(currentColorInScheme++);
 	}
 	
 	/* ------------------ Math -------------------- */
