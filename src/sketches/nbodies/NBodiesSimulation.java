@@ -9,6 +9,7 @@ import fr.wonder.pspc.Sketch;
 public class NBodiesSimulation extends Sketch {
 
 	public static void main(String[] args) {
+		System.out.println("click to add a body");
 		new NBodiesSimulation().start();
 	}
 	

@@ -17,18 +17,16 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.event.WindowEvent;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+
+import fr.wonder.pspc.SketchGraph.Graph;
+import fr.wonder.pspc.SketchGraph.Node;
 
 /**
  * The main purpose of this class is to expose
@@ -55,8 +53,10 @@ public abstract class Sketch {
 	public int frame;
 	public int mouseX, mouseY;
 	public boolean mousePressed;
+	/** Globally readable but not writable (changing it will do nothing) */
+	public float framerate;
 	
-	private long frameDelta = 1000/60;
+	private long frameDelta;
 	
 	private JFrame jframe;
 	private JPanel canvas;
@@ -100,23 +100,29 @@ public abstract class Sketch {
 			public void paint(Graphics g) {
 				Sketch.this.graphics = (Graphics2D) g;
 				graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-				Sketch.this.frame++;
+				frame++;
 				try {
+					if(frame == 1)
+						Sketch.this.firstDraw();
 					Sketch.this.draw();
 				} catch (Throwable t) {
 					terminate(t, getClass().getName());
 				}
 			}
 		};
-		jframe.addKeyListener(new KeyAdapter() {
+		KeyAdapter keyAdapter = new KeyAdapter() {
 			public void keyPressed(KeyEvent e) {
 				if(e.getKeyCode() == KeyEvent.VK_ESCAPE)
 					terminate(null, null);
 				else
 					Sketch.this.keyPressed(e.getKeyChar());
 			}
-			public void keyReleased(KeyEvent e) { Sketch.this.keyReleased(e.getKeyChar()); }
-		});
+			public void keyReleased(KeyEvent e) {
+				Sketch.this.keyReleased(e.getKeyChar());
+			}
+		};
+		canvas.addKeyListener(keyAdapter);
+		jframe.addKeyListener(keyAdapter);
 		canvas.addMouseListener(new MouseAdapter() {
 			public void mousePressed(MouseEvent e) {
 				Sketch.this.mousePressed = true;
@@ -132,6 +138,7 @@ public abstract class Sketch {
 		});
 		setWinSize(100, 100);
 		jframe.add(canvas);
+		setFramerate(60f);
 		
 		try {
 			this.setup();
@@ -177,10 +184,11 @@ public abstract class Sketch {
 	/* ------------------ Overridable -------------------- */
 
 	public abstract void setup();
+	public void firstDraw() {}
 	public abstract void draw();
 	public void keyPressed(char key) {}
 	public void keyReleased(char key) {}
-	public void mouseClicked(int button) {};
+	public void mouseClicked(int button) {}
 	
 	/* ------------------ Setup -------------------- */
 	
@@ -198,6 +206,7 @@ public abstract class Sketch {
 	}
 	
 	public final void setFramerate(float fps) {
+		this.framerate = max(0, fps);
 		if(fps <= 0)
 			this.frameDelta = Long.MAX_VALUE;
 		else
@@ -208,6 +217,7 @@ public abstract class Sketch {
 	@Deprecated
 	public final void setFramerateUnlimited() {
 		this.frameDelta = 0;
+		this.framerate = Integer.MAX_VALUE;
 	}
 	
 	/* ------------------ Render -------------------- */
@@ -350,6 +360,13 @@ public abstract class Sketch {
 		return colorInScheme(currentColorInScheme++);
 	}
 	
+	public static Color alpha(Color c, float a) {
+		return new Color(
+				c.getRed()/255f,
+				c.getGreen()/255f,
+				c.getBlue()/255f, a);
+	}
+	
 	/* ------------------ Math -------------------- */
 	
 	public static final float PI = (float) Math.PI;
@@ -360,6 +377,18 @@ public abstract class Sketch {
 	
 	public static int floor(float f) {
 		return (int) Math.floor(f);
+	}
+	
+	public static float round(float f, int decimals) {
+//		float p = 1;
+//		for(int i = 0; i < decimals; i++)
+//			p *= 10;
+		float p = pow(10, decimals);
+		return round(f*p)/p;
+	}
+	
+	public static int round(float f) {
+		return (int) (f+.5f);
 	}
 	
 	public static float fract(float f) {
@@ -376,6 +405,10 @@ public abstract class Sketch {
 	
 	public static int randint(int min, int max) {
 		return (int) (random()*(max-min)+min);
+	}
+	
+	public static float randsign() {
+		return random() < .5f ? -1 : 1;
 	}
 	
 	public static int abs(int x) {
@@ -400,6 +433,18 @@ public abstract class Sketch {
 	
 	public static float tan(float f) {
 		return (float) Math.tan(f);
+	}
+	
+	public static float lerp(float x, float min, float max) {
+		return x*(max-min)+min;
+	}
+	
+	public static float pow(float base, float exponent) {
+		return (float) Math.pow(base, exponent);
+	}
+	
+	public static float mix(float x, float min, float max, float tmin, float tmax) {
+		return lerp((x-min)/(max-min), tmin, tmax);
 	}
 
 	public static int max(int... ints) {
@@ -540,128 +585,6 @@ public abstract class Sketch {
 		
 	}
 	
-	public static class Graph implements Iterable<Node> {
-		
-		private final List<Node> nodes = new ArrayList<>();
-		private final Set<Pair<Node>> edges = new HashSet<>();
-		
-		public final boolean directionalGraph;
-		
-		public Graph(boolean directionalGraph) {
-			this.directionalGraph = directionalGraph;
-		}
-		
-		public void addNode(Node... n) {
-			for(Node node : n)
-				if(!nodes.contains(node))
-					nodes.add(node);
-		}
-		
-		public void removeNode(Node... n) {
-			for(Node node : n)
-				nodes.remove(node);
-		}
-
-		public void addEdge(Node n1, Node n2) {
-			if(n1 == n2)
-				throw new IllegalArgumentException("The two nodes are the same");
-			if(n1.id > n2.id && !directionalGraph) {
-				Node t = n1;
-				n1 = n2;
-				n2 = t;
-			}
-			edges.add(new Pair<>(n1, n2));
-		}
-		
-		public void removeEdge(Node n1, Node n2) {
-			if(n1.id > n2.id && !directionalGraph) {
-				Node t = n1;
-				n1 = n2;
-				n2 = t;
-			}
-			edges.remove(new Pair<>(n1, n2));
-		}
-		
-		public void addBidirectionalEdge(Node n1, Node n2) {
-			addEdge(n1, n2);
-			addEdge(n2, n1);
-		}
-		
-		public void removeBidirectionalEdge(Node n1, Node n2) {
-			removeEdge(n1, n2);
-			removeEdge(n2, n1);
-		}
-		
-		public List<Node> getConnectedNodes(Node n) {
-			List<Node> connected = new ArrayList<>();
-			for(Pair<Node> e : edges) {
-				if(e.first == n)
-					connected.add(e.second);
-				else if(!directionalGraph && e.second == n)
-					connected.add(e.first);
-			}
-			return connected;
-		}
-		
-		public int size() {
-			return nodes.size();
-		}
-		
-		public Node getNode(int index) {
-			return nodes.get(index);
-		}
-		
-		public List<Node> getNodes() {
-			return nodes;
-		}
-		
-		public Set<Pair<Node>> getEdges() {
-			return edges;
-		}
-		
-		@Override
-		public Iterator<Node> iterator() {
-			return nodes.iterator();
-		}
-
-		public int edgeCount() {
-			return edges.size();
-		}
-		
-	}
-	
-	public static class Node {
-		
-		private static final float DEFAULT_SIZE = 10f;
-		private static int nextId;
-		
-		public final int id;
-		public float x, y, size;
-		public Color color;
-		public String text;
-		
-		public Node(float x, float y, float size, String text) {
-			this.id = nextId++;
-			this.x = x;
-			this.y = y;
-			this.size = size;
-			this.text = text;
-		}
-
-		public Node(float x, float y, float size) {
-			this(x, y, size, null);
-		}
-		
-		public Node(float x, float y, String text) {
-			this(x, y, DEFAULT_SIZE, text);
-		}
-		
-		public Node(float x, float y) {
-			this(x, y, DEFAULT_SIZE, null);
-		}
-		
-	}
-	
 	public final void drawGraph(Graph g, boolean drawEdges) {
 		noStroke();
 		for(int i = 0; i < g.size(); i++) {
@@ -676,7 +599,7 @@ public abstract class Sketch {
 			return;
 		stroke(Color.white);
 		if(g.directionalGraph) {
-			for(Pair<Node> edge : g.edges) {
+			for(Pair<Node> edge : g.getEdges()) {
 				Vec2 n1 = new Vec2(edge.first.x, edge.first.y);
 				Vec2 n2 = new Vec2(edge.second.x, edge.second.y);
 				Vec2 v = n2.minus(n1).normalized();
@@ -685,10 +608,9 @@ public abstract class Sketch {
 				arrow(n1.x, n1.y, n2.x, n2.y);
 			}
 		} else {
-			for(Pair<Node> edge : g.edges) {
+			for(Pair<Node> edge : g.getEdges()) {
 				line(edge.first.x, edge.first.y, edge.first.x, edge.second.y);
 			}
 		}
-	}
-	
+	}	
 }

@@ -15,6 +15,10 @@ public class Bezier extends Sketch {
 	boolean displayLines = true;
 	
 	public static void main(String[] args) {
+		System.out.println("L-click to add a point");
+		System.out.println("R-click to remove a point");
+		System.out.println("Press h to hide building lines");
+		System.out.println("Press space to regenerate a set of points");
 		new Bezier().start();
 	}
 	
