@@ -88,7 +88,7 @@ public class NBodiesSimulation extends Sketch {
 	}
 
 	@Override
-	public void mouseClicked(int button) {
+	public void mousePressed(int button) {
 		if(button == CLICK_LEFT)
 			bodies.add(new Body(mouseX, mouseY, 0, 0, 10));
 	}

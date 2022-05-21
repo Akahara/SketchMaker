@@ -126,10 +126,11 @@ public abstract class Sketch {
 		canvas.addMouseListener(new MouseAdapter() {
 			public void mousePressed(MouseEvent e) {
 				Sketch.this.mousePressed = true;
-				Sketch.this.mouseClicked(e.getButton());
+				Sketch.this.mousePressed(e.getButton());
 			}
 			public void mouseReleased(MouseEvent e) {
 				Sketch.this.mousePressed = false;
+				Sketch.this.mouseReleased(e.getButton());
 			}
 		});
 		canvas.addMouseMotionListener(new MouseMotionAdapter() {
@@ -188,7 +189,8 @@ public abstract class Sketch {
 	public abstract void draw();
 	public void keyPressed(char key) {}
 	public void keyReleased(char key) {}
-	public void mouseClicked(int button) {}
+	public void mousePressed(int button) {}
+	public void mouseReleased(int button) {}
 	
 	/* ------------------ Setup -------------------- */
 	
@@ -218,6 +220,16 @@ public abstract class Sketch {
 	public final void setFramerateUnlimited() {
 		this.frameDelta = 0;
 		this.framerate = Integer.MAX_VALUE;
+	}
+	
+	/* ------------------ Utility ------------------- */
+
+	public Vec2 mousePos() {
+		return new Vec2(mouseX, mouseY);
+	}
+	
+	public Vec2 mouseLoc() {
+		return new Vec2(mouseX/(float)winWidth, mouseY/(float)winHeight);
 	}
 	
 	/* ------------------ Render -------------------- */
@@ -435,12 +447,24 @@ public abstract class Sketch {
 		return (float) Math.tan(f);
 	}
 	
+	public static float atan2(float x, float y) {
+		return (float) Math.atan2(x, y);
+	}
+	
 	public static float lerp(float x, float min, float max) {
 		return x*(max-min)+min;
 	}
 	
 	public static float pow(float base, float exponent) {
 		return (float) Math.pow(base, exponent);
+	}
+	
+	public static float exp(float x) {
+		return (float) Math.exp(x);
+	}
+	
+	public static float ln(float x) {
+		return (float) Math.log(x);
 	}
 	
 	public static float mix(float x, float min, float max, float tmin, float tmax) {
@@ -488,6 +512,10 @@ public abstract class Sketch {
 			this(0, 0);
 		}
 		
+		public static Vec2 unitary(float theta) {
+			return new Vec2(cos(theta), sin(theta));
+		}
+		
 		public Vec2 normalized() {
 			float l = length();
 			return new Vec2(x/l, y/l);
@@ -515,6 +543,10 @@ public abstract class Sketch {
 		
 		public float lengthSquared() {
 			return x*x + y*y;
+		}
+		
+		public Vec2 copy() {
+			return new Vec2(x, y);
 		}
 		
 		@Override

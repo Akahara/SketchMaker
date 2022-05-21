@@ -41,7 +41,7 @@ public class Bezier extends Sketch {
 	}
 	
 	@Override
-	public void mouseClicked(int button) {
+	public void mousePressed(int button) {
 		Vec2 mouse = new Vec2(mouseX, mouseY);
 		print(button);
 		if(button == CLICK_LEFT) {
